@@ -1,0 +1,143 @@
+package modelo;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.lang.reflect.Field;
+import java.util.AbstractCollection;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+public class EstadoAbrirPeriodoTest {
+
+    private Estado estado;
+
+    @BeforeEach
+    public void setUp() throws Exception {
+        estado = new Estado();
+        
+        // Usamos Reflection para inyectar un valor base de producción y demanda.
+        // Cada trabajador producirá 10 unidades.
+        setCampoPrivado(estado, "cantidadProducidaPorTrabajador", 10.0);
+        setCampoPrivado(estado, "totalDemandado", 100.0);
+    }
+
+    @Test
+    @DisplayName("Incremento positivo con suficientes parados para satisfacer la demanda")
+    public void testAbrirPeriodo_IncrementoPositivo_SuficientesParados() {
+        // Preparación: 10 trabajadores (producen 100) y 5 parados.
+        for (int i = 0; i < 10; i++) {
+            estado.getTrabajadores().add(crearAdulto(0));
+        }
+        for (int i = 0; i < 5; i++) {
+            estado.getParados().add(crearAdulto(i + 1)); // Distinta antigüedad
+        }
+
+        // Acción: Aumentamos demanda un 20%. 
+        // Demanda pasa de 100 a 120. Faltan 20 unidades -> 2 trabajadores.
+        estado.abrirPeriodo(0.20);
+
+        // Verificación
+        assertEquals(12, estado.getTrabajadores().size(), "Deberían haberse contratado 2 trabajadores");
+        assertEquals(3, estado.getParados().size(), "Deberían quedar 3 parados");
+        
+        // Verificamos que al cambiar de estado, se hayan reseteado sus periodos a 1 (o 0 y luego se incrementará, según tu implementación)
+        // Opcionalmente podrías buscar al trabajador recién contratado y asegurar que periodosEnEstado == 1
+    }
+
+    @Test
+    @DisplayName("Incremento positivo sin suficientes parados para satisfacer la demanda")
+    public void testAbrirPeriodo_IncrementoPositivo_InsuficientesParados() {
+        // Preparación: 10 trabajadores (producen 100) y solo 1 parado.
+        for (int i = 0; i < 10; i++) {
+            estado.getTrabajadores().add(crearAdulto(0));
+        }
+        estado.getParados().add(crearAdulto(2));
+
+        // Acción: Aumentamos demanda un 20%. Se requieren 2, pero solo hay 1.
+        estado.abrirPeriodo(0.20);
+
+        // Verificación
+        assertEquals(11, estado.getTrabajadores().size(), "Debería haberse contratado al único parado disponible");
+        assertEquals(0, estado.getParados().size(), "No debería quedar ningún parado");
+    }
+
+    @Test
+    @DisplayName("Incremento negativo implica despedir trabajadores")
+    public void testAbrirPeriodo_IncrementoNegativo() {
+        // Preparación: 10 trabajadores (producen 100) y 0 parados.
+        for (int i = 0; i < 10; i++) {
+            estado.getTrabajadores().add(crearAdulto(i + 1)); // Distinta antigüedad
+        }
+
+        // Acción: Reducimos demanda un 20%. 
+        // Demanda pasa de 100 a 80. Sobran 20 unidades -> 2 trabajadores despedidos.
+        estado.abrirPeriodo(-0.20);
+
+        // Verificación
+        assertEquals(8, estado.getTrabajadores().size(), "Deberían haberse despedido 2 trabajadores");
+        assertEquals(2, estado.getParados().size(), "Los 2 trabajadores despedidos deben ser ahora parados");
+    }
+
+    @Test
+    @DisplayName("Escenario de suavizado de nacimientos durante 5 periodos")
+    public void testAbrirPeriodo_SuavizadoNacimientos5Periodos() throws Exception {
+        /*
+         * NOTA PARA EL ALUMNO: 
+         * Este test asume una Y de tamaño 3 o 5 (según la hayas definido en tu código).
+         * También asume que contabilizas las defunciones en `cerrarPeriodo` y las usas
+         * al llamar a `abrirPeriodo()`. 
+         */
+
+        int tamanoMenoresInicial = estado.getMenores().size();
+
+        // Simularemos 5 periodos manuales con reducciones de demanda
+        for (int periodo = 1; periodo <= 5; periodo++) {
+            // 1. Simular defunciones para generar un "D" en el periodo anterior
+            // Inyectamos 2 ancianos a punto de morir
+            estado.getAncianos().add(new Adulto(100, 80, 100, 0)); 
+            estado.getAncianos().add(new Adulto(100, 80, 100, 0)); 
+            
+            // Cerramos periodo: esto los matará y debería sumarlos a tu variable interna de Defunciones (D=2)
+            estado.cerrarPeriodo(); 
+
+            // Rellenar trabajadores para el siguiente cálculo
+            estado.getTrabajadores().clear();
+            for (int i = 0; i < 20; i++) {
+                estado.getTrabajadores().add(crearAdulto(0));
+            }
+            setCampoPrivado(estado, "totalDemandado", 200.0);
+
+            // 2. Reducimos la demanda un 10% (Sobran 20 de produccion -> 2 trabajadores menos, Z = 2)
+            estado.abrirPeriodo(-0.10);
+
+            // En este punto, los nacimientos (N) = D - AvZ.
+            // Al avanzar los 5 periodos, si usaste una cola (Y), AvZ debería ir arrastrando 
+            // el histórico y suavizando la bajada brusca de nacimientos.
+            
+            // Aquí puedes hacer un assertEquals verificando los valores suavizados que 
+            // resultan según el tamaño (Y) exacto que hayas elegido para tu cola.
+            // Por ejemplo:
+            // int nacimientosEsperados = ... (calculado a mano según tu Y)
+            // assertEquals(nacimientosEsperados, estado.getMenores().size() - tamanoMenoresInicial);
+            
+            // Actualizamos para el siguiente bucle
+            tamanoMenoresInicial = estado.getMenores().size();
+        }
+    }
+
+    // --- MÉTODOS DE UTILIDAD ---
+    
+    private Adulto crearAdulto(int periodosEnEstado) {
+        Adulto adulto = new Adulto(20, 80, 100, 0); // Edad 20, esperanza 80
+        adulto.setPeriodosEnEstado(periodosEnEstado);
+        return adulto;
+    }
+
+    private void setCampoPrivado(Object objeto, String nombreCampo, Object valor) throws Exception {
+        Field campo = objeto.getClass().getDeclaredField(nombreCampo);
+        campo.setAccessible(true);
+        campo.set(objeto, valor);
+    }
+}

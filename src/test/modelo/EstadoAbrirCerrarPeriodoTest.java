@@ -34,6 +34,7 @@ public class EstadoAbrirCerrarPeriodoTest {
         for (int i = 0; i < 5; i++) {
             estado.getParados().add(crearAdulto(i + 1));
         }
+        
 
         estado.abrirPeriodo(0.20);
 

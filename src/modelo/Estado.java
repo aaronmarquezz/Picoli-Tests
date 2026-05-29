@@ -5,6 +5,7 @@ import static modelo.TipoPago.menor;
 import static modelo.TipoPago.parado;
 import static modelo.TipoPago.trabajador;
 
+import java.io.Serializable;
 import java.util.AbstractCollection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -13,7 +14,11 @@ import java.util.Iterator;
 import java.util.PriorityQueue;
 import java.util.Random;
 
-public class Estado {
+public class Estado implements Serializable {
+	//supongo que lo que tengo que hacer es hacer que implemente serializable y que, de alguna forma, tenga las funciones de leer 
+	//y grabar de un almacen monoobjeto porque solo es un objeto estado el que se graba. 
+	
+	
 	// atributos sobre desarrollo
 	private double capital = 0;
 	private double cantidadProducidaPorTrabajador;
